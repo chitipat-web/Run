@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FitDee — ม็อคอัพแอพออกกำลังกาย</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --accent: #2a78d6;
+    --accent-ink: #ffffff;
+    --good: #0ca30c;
+    --energy: #eb6834;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --ink-3: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --ring: rgba(11,11,11,0.10);
+    --wash: rgba(42,120,214,0.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --accent: #3987e5;
+      --energy: #d95926;
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --ink: #ffffff;
+      --ink-2: #c3c2b7;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --ring: rgba(255,255,255,0.10);
+      --wash: rgba(57,135,229,0.16);
+    }
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page); color: var(--ink);
+    display:flex; flex-direction:column; align-items:center;
+    min-height:100vh; padding:24px 12px;
+  }
+  h1.page-title { font-size:20px; margin-bottom:4px; }
+  p.page-sub { color:var(--ink-2); font-size:14px; margin-bottom:20px; text-align:center; }
+
+  /* ===== phone frame ===== */
+  .phone {
+    width:390px; max-width:100%; height:780px;
+    background:var(--page);
+    border:1px solid var(--ring);
+    border-radius:40px; overflow:hidden;
+    box-shadow:0 20px 60px rgba(0,0,0,.18);
+    display:flex; flex-direction:column; position:relative;
+  }
+  .statusbar {
+    height:44px; flex:none; display:flex; align-items:center;
+    justify-content:space-between; padding:0 24px;
+    font-size:13px; font-weight:600; color:var(--ink-2);
+  }
+  .screen { flex:1; overflow-y:auto; padding:4px 18px 20px; display:none; }
+  .screen.active { display:block; }
+
+  /* ===== tab bar ===== */
+  .tabbar {
+    flex:none; display:flex; border-top:1px solid var(--ring);
+    background:var(--surface); padding:8px 6px 18px;
+  }
+  .tab {
+    flex:1; background:none; border:none; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:3px;
+    font-family:inherit; font-size:11px; color:var(--ink-3); padding:6px 0;
+    border-radius:12px;
+  }
+  .tab .ico { font-size:20px; line-height:1; filter:grayscale(1); opacity:.55; }
+  .tab.on { color:var(--accent); font-weight:700; }
+  .tab.on .ico { filter:none; opacity:1; }
+
+  /* ===== shared ===== */
+  .card {
+    background:var(--surface); border:1px solid var(--ring);
+    border-radius:18px; padding:16px; margin-bottom:14px;
+  }
+  .sec-title { font-size:15px; font-weight:700; margin:18px 0 10px; }
+  .muted { color:var(--ink-2); font-size:13px; }
+  .tiny  { color:var(--ink-3); font-size:11px; }
+  .btn-primary {
+    display:block; width:100%; border:none; cursor:pointer;
+    background:var(--accent); color:var(--accent-ink);
+    font-family:inherit; font-size:16px; font-weight:700;
+    padding:15px; border-radius:15px; margin-top:14px;
+  }
+  .chip-row { display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; }
+  .chip {
+    flex:none; background:var(--surface); border:1px solid var(--ring);
+    border-radius:99px; padding:8px 14px; font-size:13px; color:var(--ink-2);
+  }
+  .chip.on { background:var(--wash); border-color:var(--accent); color:var(--accent); font-weight:700; }
+
+  /* ===== home ===== */
+  .greet { margin:10px 0 14px; }
+  .greet h2 { font-size:22px; }
+  .streak-row { display:flex; gap:10px; margin-bottom:14px; }
+  .stat-tile {
+    flex:1; background:var(--surface); border:1px solid var(--ring);
+    border-radius:16px; padding:12px; text-align:center;
+  }
+  .stat-tile .v { font-size:24px; font-weight:800; }
+  .stat-tile .v.orange { color:var(--energy); }
+  .stat-tile .v.blue { color:var(--accent); }
+  .stat-tile .v.green { color:var(--good); }
+  .plan-card { background:linear-gradient(135deg,var(--accent),#1c5cab); color:#fff; border:none; }
+  .plan-card .tag { font-size:12px; opacity:.85; font-weight:600; }
+  .plan-card h3 { font-size:20px; margin:6px 0 4px; }
+  .plan-card .meta { font-size:13px; opacity:.9; }
+  .plan-card .btn-primary { background:#fff; color:#1c5cab; }
+  .week-dots { display:flex; justify-content:space-between; margin-top:10px; }
+  .wd { text-align:center; font-size:11px; color:var(--ink-3); }
+  .wd .dot {
+    width:30px; height:30px; border-radius:50%; margin:0 auto 4px;
+    border:2px solid var(--grid); display:flex; align-items:center; justify-content:center;
+    font-size:13px;
+  }
+  .wd.done .dot { background:var(--good); border-color:var(--good); color:#fff; }
+  .wd.today .dot { border-color:var(--accent); color:var(--accent); font-weight:800; }
+
+  /* ===== workout ===== */
+  .prog-card { display:flex; gap:12px; align-items:center; }
+  .prog-emoji {
+    flex:none; width:54px; height:54px; border-radius:14px;
+    background:var(--wash); display:flex; align-items:center; justify-content:center;
+    font-size:26px;
+  }
+  .prog-card h4 { font-size:15px; }
+  .ex-row { display:flex; align-items:center; gap:12px; padding:10px 2px; border-bottom:1px solid var(--grid); }
+  .ex-row:last-child { border-bottom:none; }
+  .ex-thumb { width:44px; height:44px; border-radius:12px; background:var(--wash);
+    display:flex; align-items:center; justify-content:center; font-size:22px; flex:none; }
+  .ex-row h5 { font-size:14px; }
+
+  /* ===== active workout ===== */
+  .active-wrap { text-align:center; padding-top:12px; }
+  .now-tag { display:inline-block; background:var(--wash); color:var(--accent);
+    font-weight:700; font-size:12px; padding:5px 12px; border-radius:99px; }
+  .move-visual { font-size:88px; margin:18px 0 6px; }
+  .active-wrap h2 { font-size:24px; }
+  .setinfo { font-size:15px; color:var(--ink-2); margin-top:4px; }
+  .timer { font-size:56px; font-weight:800; letter-spacing:1px; margin:16px 0 2px;
+    font-variant-numeric: tabular-nums; }
+  .timer-label { color:var(--ink-3); font-size:13px; }
+  .active-btns { display:flex; gap:10px; margin-top:20px; }
+  .active-btns .btn-primary { margin-top:0; }
+  .btn-ghost {
+    flex:1; background:var(--surface); border:1px solid var(--ring); cursor:pointer;
+    color:var(--ink-2); font-family:inherit; font-size:15px; font-weight:600;
+    padding:15px; border-radius:15px;
+  }
+  .nextup { margin-top:22px; text-align:left; }
+
+  /* ===== stats / chart ===== */
+  .hero-num { font-size:40px; font-weight:800; }
+  .hero-num small { font-size:15px; font-weight:600; color:var(--ink-2); }
+  .delta-up { color:var(--good); font-size:13px; font-weight:700; }
+  .chart { margin-top:14px; }
+  .chart-grid {
+    position:relative; height:150px;
+    border-bottom:2px solid var(--baseline);
+    display:flex; align-items:flex-end; gap:10px; padding:0 4px;
+  }
+  .gridline { position:absolute; left:0; right:0; height:1px; background:var(--grid); }
+  .bar-col { flex:1; display:flex; flex-direction:column; align-items:center;
+    justify-content:flex-end; height:100%; position:relative; cursor:default; }
+  .bar {
+    width:100%; max-width:26px;
+    background:var(--accent);
+    border-radius:4px 4px 0 0;
+    transition:opacity .15s;
+  }
+  .bar.rest { background:var(--grid); height:3px !important; border-radius:2px; }
+  .bar-val { font-size:11px; font-weight:700; color:var(--ink-2); margin-bottom:4px; }
+  .bar-col:hover .bar { opacity:.75; }
+  .bar-col .tip {
+    display:none; position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%);
+    background:var(--ink); color:var(--page); font-size:11px; font-weight:600;
+    padding:5px 9px; border-radius:8px; white-space:nowrap; z-index:2;
+  }
+  .bar-col:hover .tip { display:block; }
+  .x-labels { display:flex; gap:10px; padding:6px 4px 0; }
+  .x-labels span { flex:1; text-align:center; font-size:11px; color:var(--ink-3); }
+  .pr-row { display:flex; justify-content:space-between; padding:9px 2px; border-bottom:1px solid var(--grid); font-size:14px; }
+  .pr-row:last-child { border-bottom:none; }
+  .pr-row b { font-variant-numeric: tabular-nums; }
+
+  /* ===== profile ===== */
+  .avatar-row { display:flex; align-items:center; gap:14px; margin:10px 0 16px; }
+  .avatar { width:60px; height:60px; border-radius:50%; background:var(--wash);
+    display:flex; align-items:center; justify-content:center; font-size:30px; }
+  .badges { display:flex; gap:10px; }
+  .badge { flex:1; text-align:center; background:var(--surface); border:1px solid var(--ring);
+    border-radius:14px; padding:12px 4px; }
+  .badge .b-ico { font-size:26px; }
+  .badge .b-name { font-size:11px; color:var(--ink-2); margin-top:4px; }
+  .badge.locked { opacity:.4; }
+  .set-row { display:flex; justify-content:space-between; align-items:center;
+    padding:12px 2px; border-bottom:1px solid var(--grid); font-size:14px; }
+  .set-row:last-child { border-bottom:none; }
+  .toggle { width:44px; height:26px; border-radius:99px; background:var(--good); position:relative; flex:none; }
+  .toggle::after { content:""; position:absolute; top:3px; right:3px; width:20px; height:20px;
+    border-radius:50%; background:#fff; }
+  .toggle.off { background:var(--grid); }
+  .toggle.off::after { right:auto; left:3px; }
+
+  .hint { margin-top:16px; font-size:13px; color:var(--ink-2); text-align:center; }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">FitDee (ฟิตดี) — ม็อคอัพหน้าจอแอพ</h1>
+<p class="page-sub">กดแท็บด้านล่างเพื่อสลับหน้าจอ · กด "เริ่มเลย" ในหน้าแรกเพื่อดูโหมดเล่นจริง</p>
+
+<div class="phone">
+  <div class="statusbar"><span>09:41</span><span>📶 🔋</span></div>
+
+  <!-- ===================== HOME ===================== -->
+  <div class="screen active" id="scr-home">
+    <div class="greet">
+      <div class="muted">พฤหัสบดี 24 ก.ค.</div>
+      <h2>สวัสดีตอนเช้า, ต้น 👋</h2>
+    </div>
+
+    <div class="streak-row">
+      <div class="stat-tile"><div class="v orange">🔥 12</div><div class="tiny">วันติดต่อกัน</div></div>
+      <div class="stat-tile"><div class="v blue">186</div><div class="tiny">kcal วันนี้</div></div>
+      <div class="stat-tile"><div class="v green">24</div><div class="tiny">นาทีวันนี้</div></div>
+    </div>
+
+    <div class="card plan-card">
+      <div class="tag">แผนวันนี้ · วันที่ 12/30</div>
+      <h3>Upper Body — อกและไหล่</h3>
+      <div class="meta">6 ท่า · ประมาณ 28 นาที · ดัมเบล 1 คู่</div>
+      <button class="btn-primary" onclick="go('active')">▶ &nbsp;เริ่มเลย</button>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <strong style="font-size:14px">สัปดาห์นี้</strong>
+        <span class="tiny">เป้า 4 วัน · ทำแล้ว 3</span>
+      </div>
+      <div class="week-dots">
+        <div class="wd done"><div class="dot">✓</div>จ.</div>
+        <div class="wd done"><div class="dot">✓</div>อ.</div>
+        <div class="wd"><div class="dot"></div>พ.</div>
+        <div class="wd done"><div class="dot">✓</div>พฤ.</div>
+        <div class="wd today"><div class="dot">●</div>ศ.</div>
+        <div class="wd"><div class="dot"></div>ส.</div>
+        <div class="wd"><div class="dot"></div>อา.</div>
+      </div>
+    </div>
+
+    <div class="sec-title">เล่นด่วน</div>
+    <div class="chip-row">
+      <div class="chip on">⚡ 7 นาทีทั้งตัว</div>
+      <div class="chip">🧘 ยืดเหยียด 10 นาที</div>
+      <div class="chip">🏃 คาร์ดิโอ HIIT</div>
+      <div class="chip">🦵 ขาและก้น</div>
+    </div>
+  </div>
+
+  <!-- ===================== WORKOUT ===================== -->
+  <div class="screen" id="scr-workout">
+    <div class="sec-title" style="margin-top:10px">โปรแกรมแนะนำ</div>
+
+    <div class="card prog-card">
+      <div class="prog-emoji">🔰</div>
+      <div>
+        <h4>มือใหม่ 30 วัน</h4>
+        <div class="tiny">ไม่ใช้อุปกรณ์ · 20–30 นาที/วัน · กำลังเล่นอยู่ (วันที่ 12)</div>
+      </div>
+    </div>
+    <div class="card prog-card">
+      <div class="prog-emoji">🔥</div>
+      <div>
+        <h4>เผาผลาญไขมัน 4 สัปดาห์</h4>
+        <div class="tiny">HIIT + คาร์ดิโอ · 25 นาที/วัน · ระดับกลาง</div>
+      </div>
+    </div>
+    <div class="card prog-card">
+      <div class="prog-emoji">💪</div>
+      <div>
+        <h4>สร้างกล้ามด้วยดัมเบล</h4>
+        <div class="tiny">ดัมเบล 1 คู่ · 4 วัน/สัปดาห์ · ระดับกลาง–สูง</div>
+      </div>
+    </div>
+
+    <div class="sec-title">คลังท่าออกกำลังกาย</div>
+    <div class="chip-row" style="margin-bottom:10px">
+      <div class="chip on">ทั้งหมด</div>
+      <div class="chip">อก</div>
+      <div class="chip">หลัง</div>
+      <div class="chip">ขา</div>
+      <div class="chip">แกนกลาง</div>
+      <div class="chip">ไหล่</div>
+    </div>
+    <div class="card">
+      <div class="ex-row"><div class="ex-thumb">🫷</div><div><h5>วิดพื้น (Push-up)</h5><div class="tiny">อก · ไม่ใช้อุปกรณ์</div></div></div>
+      <div class="ex-row"><div class="ex-thumb">🏋️</div><div><h5>สควอท (Squat)</h5><div class="tiny">ขา · ไม่ใช้อุปกรณ์</div></div></div>
+      <div class="ex-row"><div class="ex-thumb">🧱</div><div><h5>แพลงก์ (Plank)</h5><div class="tiny">แกนกลาง · ไม่ใช้อุปกรณ์</div></div></div>
+      <div class="ex-row"><div class="ex-thumb">🚣</div><div><h5>ดัมเบลโรว์ (Dumbbell Row)</h5><div class="tiny">หลัง · ดัมเบล</div></div></div>
+      <div class="ex-row"><div class="ex-thumb">🦵</div><div><h5>ลันจ์ (Lunge)</h5><div class="tiny">ขา · ไม่ใช้อุปกรณ์</div></div></div>
+    </div>
+    <button class="btn-primary" style="background:var(--surface);color:var(--accent);border:2px solid var(--accent)">＋ สร้างโปรแกรมของฉันเอง</button>
+  </div>
+
+  <!-- ===================== ACTIVE WORKOUT ===================== -->
+  <div class="screen" id="scr-active">
+    <div class="active-wrap">
+      <span class="now-tag">ท่าที่ 3 จาก 6 · Upper Body</span>
+      <div class="move-visual">🫷</div>
+      <h2>วิดพื้น (Push-up)</h2>
+      <div class="setinfo">เซ็ต 2 / 3 &nbsp;·&nbsp; 12 ครั้ง</div>
+      <div class="timer" id="timer">00:42</div>
+      <div class="timer-label">เวลาพัก — เตรียมตัวเซ็ตถัดไป</div>
+      <div class="active-btns">
+        <button class="btn-ghost" onclick="go('home')">⏸ พัก</button>
+        <button class="btn-primary" style="flex:1.4" onclick="go('stats')">✓ เสร็จเซ็ตนี้</button>
+      </div>
+      <div class="nextup">
+        <div class="sec-title" style="margin-top:0">ต่อไป</div>
+        <div class="card" style="margin-bottom:0">
+          <div class="ex-row" style="border:none;padding:2px">
+            <div class="ex-thumb">🏋️</div>
+            <div><h5>ดัมเบลเพรส (Dumbbell Press)</h5><div class="tiny">3 เซ็ต × 10 ครั้ง · พัก 60 วิ</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== STATS ===================== -->
+  <div class="screen" id="scr-stats">
+    <div class="sec-title" style="margin-top:10px">สถิติของฉัน</div>
+
+    <div class="card">
+      <div class="muted">นาทีออกกำลังกาย · สัปดาห์นี้</div>
+      <div class="hero-num">148 <small>นาที</small></div>
+      <div class="delta-up">▲ +23% จากสัปดาห์ก่อน</div>
+
+      <div class="chart">
+        <div class="chart-grid">
+          <div class="gridline" style="bottom:50%"></div>
+          <div class="gridline" style="bottom:100%"></div>
+          <div class="bar-col"><span class="tip">จันทร์ · 32 นาที</span><div class="bar-val">32</div><div class="bar" style="height:64%"></div></div>
+          <div class="bar-col"><span class="tip">อังคาร · 28 นาที</span><div class="bar-val">28</div><div class="bar" style="height:56%"></div></div>
+          <div class="bar-col"><span class="tip">พุธ · วันพัก</span><div class="bar-val">–</div><div class="bar rest"></div></div>
+          <div class="bar-col"><span class="tip">พฤหัส · 40 นาที</span><div class="bar-val">40</div><div class="bar" style="height:80%"></div></div>
+          <div class="bar-col"><span class="tip">ศุกร์ · 24 นาที (วันนี้)</span><div class="bar-val">24</div><div class="bar" style="height:48%"></div></div>
+          <div class="bar-col"><span class="tip">เสาร์ · ยังไม่ถึง</span><div class="bar-val"></div><div class="bar rest"></div></div>
+          <div class="bar-col"><span class="tip">อาทิตย์ · ยังไม่ถึง</span><div class="bar-val"></div><div class="bar rest"></div></div>
+        </div>
+        <div class="x-labels"><span>จ.</span><span>อ.</span><span>พ.</span><span>พฤ.</span><span>ศ.</span><span>ส.</span><span>อา.</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="muted" style="margin-bottom:6px">น้ำหนักตัว</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <div class="hero-num" style="font-size:30px">72.4 <small>กก.</small></div>
+        <div class="delta-up">▼ −1.8 กก. ใน 30 วัน</div>
+      </div>
+      <div class="tiny" style="margin-top:4px">เป้าหมาย 68.0 กก. — เหลืออีก 4.4 กก. 💪</div>
+    </div>
+
+    <div class="card">
+      <div class="muted" style="margin-bottom:4px">สถิติสูงสุด (PR)</div>
+      <div class="pr-row"><span>🫷 วิดพื้นต่อเนื่อง</span><b>28 ครั้ง</b></div>
+      <div class="pr-row"><span>🧱 แพลงก์นานสุด</span><b>2:15 นาที</b></div>
+      <div class="pr-row"><span>🏋️ ดัมเบลเพรสหนักสุด</span><b>14 กก.</b></div>
+    </div>
+  </div>
+
+  <!-- ===================== PROFILE ===================== -->
+  <div class="screen" id="scr-profile">
+    <div class="avatar-row">
+      <div class="avatar">🧑</div>
+      <div>
+        <h2 style="font-size:19px">ต้น ชิตติพัทธ์</h2>
+        <div class="tiny">เป้าหมาย: ลดน้ำหนัก · เล่น 4 วัน/สัปดาห์</div>
+      </div>
+    </div>
+
+    <div class="sec-title" style="margin-top:0">เหรียญรางวัล</div>
+    <div class="badges">
+      <div class="badge"><div class="b-ico">🔥</div><div class="b-name">7 วันติด</div></div>
+      <div class="badge"><div class="b-ico">💯</div><div class="b-name">ครบ 100 ท่า</div></div>
+      <div class="badge locked"><div class="b-ico">🏆</div><div class="b-name">30 วันติด</div></div>
+      <div class="badge locked"><div class="b-ico">⛰️</div><div class="b-name">1,000 นาที</div></div>
+    </div>
+
+    <div class="sec-title">ตั้งค่า</div>
+    <div class="card">
+      <div class="set-row"><span>🔔 เตือนเวลาซ้อม (18:30)</span><div class="toggle"></div></div>
+      <div class="set-row"><span>🌙 ธีมมืดอัตโนมัติ</span><div class="toggle"></div></div>
+      <div class="set-row"><span>❤️ เชื่อมต่อ Health app</span><div class="toggle off"></div></div>
+      <div class="set-row"><span>⚖️ หน่วยน้ำหนัก</span><span class="muted">กิโลกรัม ›</span></div>
+    </div>
+  </div>
+
+  <!-- ===================== TAB BAR ===================== -->
+  <nav class="tabbar">
+    <button class="tab on" data-scr="home"><span class="ico">🏠</span>หน้าแรก</button>
+    <button class="tab" data-scr="workout"><span class="ico">💪</span>ออกกำลังกาย</button>
+    <button class="tab" data-scr="stats"><span class="ico">📊</span>สถิติ</button>
+    <button class="tab" data-scr="profile"><span class="ico">👤</span>โปรไฟล์</button>
+  </nav>
+</div>
+
+<p class="hint">ธีมสว่าง/มืดสลับตามการตั้งค่าเครื่องอัตโนมัติ</p>
+
+<script>
+  const tabs = document.querySelectorAll('.tab');
+  function go(name) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('scr-' + name).classList.add('active');
+    tabs.forEach(t => t.classList.toggle('on', t.dataset.scr === name));
+    // โหมดเล่นจริงไม่ใช่แท็บ — ไฮไลต์แท็บออกกำลังกายแทน
+    if (name === 'active') tabs.forEach(t => t.classList.toggle('on', t.dataset.scr === 'workout'));
+  }
+  tabs.forEach(t => t.addEventListener('click', () => go(t.dataset.scr)));
+
+  // นาฬิกาพักถอยหลังจำลองในหน้าโหมดเล่นจริง
+  let sec = 42;
+  setInterval(() => {
+    sec = sec > 0 ? sec - 1 : 60;
+    const el = document.getElementById('timer');
+    if (el) el.textContent = '00:' + String(sec).padStart(2, '0');
+  }, 1000);
+</script>
+</body>
+</html>
