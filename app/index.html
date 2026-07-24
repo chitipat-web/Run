@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#07070b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>RunDee Live — วิ่งจริง จับ GPS จริง</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root {
+    --bg: #07070b;
+    --bg-2: #0d0d14;
+    --glass: rgba(255,255,255,.055);
+    --glass-2: rgba(255,255,255,.09);
+    --line: rgba(255,255,255,.09);
+    --ink: #f4f4f6;
+    --ink-2: #a7a7b4;
+    --ink-3: #67676f;
+    --volt: #c9f24b;
+    --volt-deep: #a8d92b;
+    --cyan: #5fd4f5;
+    --orange: #ff8a5c;
+    --red: #ff5c5c;
+    --radius: 22px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; }
+  body {
+    font-family: "SF Pro Display", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Thai", sans-serif;
+    background:
+      radial-gradient(120% 60% at 50% -10%, #14141f 0%, var(--bg) 55%),
+      var(--bg);
+    color: var(--ink);
+    overflow: hidden;
+    user-select: none; -webkit-user-select: none;
+  }
+  #app { height:100dvh; max-width:520px; margin:0 auto; position:relative; display:flex; flex-direction:column; }
+
+  .screen { position:absolute; inset:0; display:none; flex-direction:column;
+    padding: max(14px, env(safe-area-inset-top)) 18px max(16px, env(safe-area-inset-bottom));
+    animation: fadein .28s ease; overflow:hidden; }
+  .screen.active { display:flex; }
+  @keyframes fadein { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+  .glass { background:var(--glass); border:1px solid var(--line); border-radius:var(--radius);
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+
+  /* ============ HOME ============ */
+  .brand { display:flex; align-items:center; justify-content:space-between; padding:10px 2px 0; }
+  .brand .logo { font-size:21px; font-weight:800; letter-spacing:-.02em; }
+  .brand .logo em { font-style:normal; color:var(--volt); }
+  .pill { font-size:11.5px; padding:7px 12px; border-radius:99px; border:1px solid var(--line);
+    background:var(--glass); color:var(--ink-2); display:inline-flex; align-items:center; gap:6px; }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--ink-3); }
+  .dot.ok { background:var(--volt); box-shadow:0 0 10px var(--volt); animation:pulse 1.6s infinite; }
+  .dot.warn { background:var(--orange); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+  .hero { margin-top:26px; padding:0 2px; }
+  .hero .kicker { font-size:12px; letter-spacing:.22em; color:var(--ink-3); text-transform:uppercase; font-weight:700; }
+  .hero h1 { font-size:34px; font-weight:800; letter-spacing:-.035em; line-height:1.12; margin-top:8px; }
+  .hero h1 .grad { background:linear-gradient(92deg, var(--volt), var(--cyan));
+    -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .hero p { color:var(--ink-2); font-size:13.5px; margin-top:10px; line-height:1.55; }
+
+  .start-wrap { display:flex; flex-direction:column; align-items:center; margin:auto 0; padding:22px 0; }
+  .start-btn { width:172px; height:172px; border-radius:50%; border:none; cursor:pointer; position:relative;
+    background:
+      radial-gradient(closest-side, rgba(201,242,75,.16), transparent 78%),
+      linear-gradient(140deg, var(--volt), var(--volt-deep));
+    color:#0a0f00; font-family:inherit; font-weight:800;
+    box-shadow: 0 24px 60px rgba(201,242,75,.28), inset 0 -6px 18px rgba(0,0,0,.18);
+    transition: transform .12s ease; }
+  .start-btn:active { transform:scale(.94); }
+  .start-btn .s-ico { font-size:34px; display:block; }
+  .start-btn .s-txt { font-size:19px; letter-spacing:.01em; }
+  .start-btn::before { content:""; position:absolute; inset:-14px; border-radius:50%;
+    border:1.5px dashed rgba(201,242,75,.35); animation:spin 24s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .demo-link { margin-top:22px; background:none; border:none; color:var(--ink-3); font-family:inherit;
+    font-size:12.5px; cursor:pointer; text-decoration:underline dotted; }
+
+  .h-section { font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3);
+    font-weight:700; margin:6px 2px 10px; }
+  #history { overflow-y:auto; max-height:30dvh; margin:0 -4px; padding:0 4px 8px; }
+  .run-item { display:flex; align-items:center; gap:13px; padding:13px 15px; margin-bottom:9px; cursor:pointer; }
+  .run-item .ri-badge { flex:none; width:42px; height:42px; border-radius:14px;
+    background:linear-gradient(140deg, rgba(201,242,75,.18), rgba(95,212,245,.14));
+    display:flex; align-items:center; justify-content:center; font-size:19px; }
+  .run-item .ri-main { flex:1; min-width:0; }
+  .run-item .ri-dist { font-size:16px; font-weight:800; letter-spacing:-.02em; }
+  .run-item .ri-sub { font-size:11.5px; color:var(--ink-2); margin-top:2px; }
+  .run-item .ri-pace { font-size:13px; font-weight:700; color:var(--cyan); font-variant-numeric:tabular-nums; }
+  .empty { text-align:center; color:var(--ink-3); font-size:12.5px; padding:18px 0 8px; }
+
+  /* ============ COUNTDOWN ============ */
+  #countdown { position:absolute; inset:0; z-index:60; display:none; align-items:center; justify-content:center;
+    background:rgba(7,7,11,.9); backdrop-filter:blur(8px); }
+  #countdown.active { display:flex; }
+  #cd-num { font-size:150px; font-weight:800; letter-spacing:-.05em;
+    background:linear-gradient(140deg, var(--volt), var(--cyan));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    animation:cdpop .95s ease infinite; }
+  @keyframes cdpop { 0%{transform:scale(.6);opacity:0} 18%{transform:scale(1.06);opacity:1} 82%{transform:scale(1);opacity:1} 100%{opacity:0} }
+
+  /* ============ LIVE ============ */
+  #scr-live { padding:0; }
+  #map-live { flex:1.05; min-height:34dvh; position:relative; background:var(--bg-2); }
+  #map-live .leaflet-container { background:var(--bg-2); }
+  .map-off { position:absolute; inset:0; display:flex; align-items:flex-end; justify-content:center;
+    color:var(--ink-3); font-size:11.5px; text-align:center; padding:0 30px 34px; z-index:5; pointer-events:none; }
+  .trace-svg { position:absolute; inset:0; width:100%; height:100%; z-index:4;
+    background:
+      radial-gradient(rgba(255,255,255,.05) 1px, transparent 1.5px) 0 0/26px 26px,
+      radial-gradient(90% 70% at 50% 30%, #12121c 0%, var(--bg-2) 70%); }
+  .live-float { position:absolute; top:max(12px, env(safe-area-inset-top)); left:14px; right:14px; z-index:1000;
+    display:flex; justify-content:space-between; pointer-events:none; }
+  .live-float .pill { pointer-events:auto; background:rgba(10,10,16,.72); backdrop-filter:blur(12px); }
+
+  .live-panel { flex:1; background:linear-gradient(180deg, rgba(13,13,20,.4), var(--bg) 26%);
+    border-radius:28px 28px 0 0; margin-top:-24px; z-index:900; position:relative;
+    padding:16px 20px max(14px, env(safe-area-inset-bottom));
+    display:flex; flex-direction:column; border-top:1px solid var(--line); }
+  .grab { width:44px; height:4px; border-radius:99px; background:var(--line); margin:0 auto 12px; }
+
+  .metric-hero { text-align:center; margin-top:2px; }
+  .metric-hero .mh-v { font-size:74px; font-weight:800; letter-spacing:-.045em; line-height:1;
+    font-variant-numeric:tabular-nums; }
+  .metric-hero .mh-l { font-size:11.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin-top:4px; }
+  .metric-row { display:flex; margin-top:18px; }
+  .metric { flex:1; text-align:center; }
+  .metric .m-v { font-size:27px; font-weight:800; letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
+  .metric .m-v.volt { color:var(--volt); }
+  .metric .m-l { font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin-top:3px; }
+  .metric + .metric { border-left:1px solid var(--line); }
+
+  .live-ctrl { display:flex; gap:12px; align-items:center; margin-top:auto; padding-top:16px; }
+  .ctl { border:none; cursor:pointer; font-family:inherit; font-weight:800; border-radius:20px; transition:transform .1s ease; }
+  .ctl:active { transform:scale(.95); }
+  .ctl-pause { flex:1.5; padding:19px; font-size:17px; background:#fff; color:#0b0b0f; }
+  .ctl-pause.resume { background:linear-gradient(140deg, var(--volt), var(--volt-deep)); color:#0a0f00; }
+  .ctl-stop { flex:1; padding:19px 10px; font-size:14px; background:var(--glass-2); color:var(--ink);
+    border:1px solid var(--line); position:relative; overflow:hidden; }
+  .ctl-stop .hold-fill { position:absolute; inset:0; background:var(--red); transform:scaleX(0);
+    transform-origin:left; transition:transform .1s linear; z-index:0; }
+  .ctl-stop span { position:relative; z-index:1; }
+  .ctl-stop small { display:block; font-size:9.5px; color:var(--ink-3); font-weight:600; position:relative; z-index:1; }
+  .paused-tag { text-align:center; color:var(--orange); font-size:12px; font-weight:700; letter-spacing:.14em;
+    text-transform:uppercase; margin-top:10px; display:none; }
+  .paused-tag.show { display:block; animation:pulse 1.4s infinite; }
+
+  /* ============ SUMMARY ============ */
+  #scr-summary { padding:0; overflow-y:auto; display:none; }
+  #scr-summary.active { display:block; }
+  #map-sum { height:36dvh; min-height:230px; background:var(--bg-2); position:relative; }
+  .sum-body { padding:18px 20px max(20px, env(safe-area-inset-bottom)); margin-top:-22px; position:relative; z-index:800;
+    background:linear-gradient(180deg, rgba(13,13,20,.35), var(--bg) 22%);
+    border-radius:28px 28px 0 0; border-top:1px solid var(--line); }
+  .sum-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px; }
+  .sum-head h2 { font-size:21px; font-weight:800; letter-spacing:-.02em; }
+  .sum-head h2 em { font-style:normal; color:var(--volt); }
+  .sum-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .sum-tile { padding:14px 16px; }
+  .sum-tile .v { font-size:26px; font-weight:800; letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
+  .sum-tile .v small { font-size:13px; color:var(--ink-2); font-weight:700; }
+  .sum-tile .l { font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin-top:3px; }
+  .legend { display:flex; gap:14px; font-size:11px; color:var(--ink-2); margin:12px 2px 0; }
+  .legend i { display:inline-block; width:16px; height:5px; border-radius:3px; margin-right:5px; vertical-align:2px; }
+  .splits { margin-top:16px; padding:15px 16px; }
+  .splits h3, .sec-h { font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin-bottom:10px; }
+  .split-row { display:flex; align-items:center; gap:10px; margin:8px 0; }
+  .split-row .km { flex:none; width:42px; font-size:12px; color:var(--ink-2); font-weight:600; }
+  .split-row .bar { height:13px; border-radius:4px; background:linear-gradient(90deg, var(--cyan), var(--volt)); min-width:6px; }
+  .split-row .pv { margin-left:auto; font-size:13px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .sum-actions { display:flex; gap:10px; margin-top:18px; }
+  .btn { flex:1; border:none; cursor:pointer; font-family:inherit; font-weight:800; font-size:15px;
+    padding:16px; border-radius:18px; transition:transform .1s ease; }
+  .btn:active { transform:scale(.96); }
+  .btn-volt { background:linear-gradient(140deg, var(--volt), var(--volt-deep)); color:#0a0f00; }
+  .btn-dim { background:var(--glass-2); color:var(--ink); border:1px solid var(--line); }
+  .toast { position:absolute; left:50%; bottom:90px; transform:translateX(-50%); z-index:1200;
+    background:rgba(20,20,30,.95); border:1px solid var(--line); color:var(--ink);
+    padding:11px 18px; border-radius:99px; font-size:13px; display:none; }
+  .toast.show { display:block; animation:fadein .25s ease; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ HOME ============ -->
+  <div class="screen active" id="scr-home">
+    <div class="brand">
+      <div class="logo">Run<em>Dee</em> <span style="font-size:11px;color:var(--ink-3);font-weight:600">LIVE</span></div>
+      <div class="pill"><span class="dot" id="gps-dot"></span><span id="gps-txt">กำลังหา GPS…</span></div>
+    </div>
+
+    <div class="hero">
+      <div class="kicker">Ready when you are</div>
+      <h1>ออกไปวิ่ง แล้วให้เรา<br><span class="grad">วาดเส้นทางของคุณ</span></h1>
+      <p>จับ GPS จริง วาดเส้นทางสด คำนวณระยะ · เพซ · สปลิตราย กม. — เปิดจากมือถือแล้วกดปุ่มเดียวจบ</p>
+    </div>
+
+    <div class="start-wrap">
+      <button class="start-btn" id="btn-start">
+        <span class="s-ico">▶</span>
+        <span class="s-txt">เริ่มวิ่ง</span>
+      </button>
+      <button class="demo-link" id="btn-demo">ไม่ได้อยู่ข้างนอก? ลองโหมดจำลอง GPS</button>
+    </div>
+
+    <div class="h-section">การวิ่งของฉัน</div>
+    <div id="history"></div>
+  </div>
+
+  <!-- ============ COUNTDOWN ============ -->
+  <div id="countdown"><div id="cd-num">3</div></div>
+
+  <!-- ============ LIVE ============ -->
+  <div class="screen" id="scr-live">
+    <div id="map-live">
+      <svg class="trace-svg" id="trace-live" style="display:none"></svg>
+      <div class="map-off" id="map-live-off">โหมดวาดเส้นทาง — แผนที่พื้นหลังโหลดไม่ได้ (ออฟไลน์) แต่เส้นทางและระยะบันทึกครบ</div>
+      <div class="live-float">
+        <span class="pill"><span class="dot" id="live-gps-dot"></span><span id="live-gps-txt">GPS</span></span>
+        <span class="pill" id="live-clock">00:00</span>
+      </div>
+    </div>
+    <div class="live-panel">
+      <div class="grab"></div>
+      <div class="metric-hero">
+        <div class="mh-v" id="m-dist">0.00</div>
+        <div class="mh-l">กิโลเมตร</div>
+      </div>
+      <div class="metric-row">
+        <div class="metric"><div class="m-v" id="m-time">00:00</div><div class="m-l">เวลา</div></div>
+        <div class="metric"><div class="m-v volt" id="m-pace">--:--</div><div class="m-l">เพซตอนนี้</div></div>
+        <div class="metric"><div class="m-v" id="m-avg">--:--</div><div class="m-l">เพซเฉลี่ย</div></div>
+      </div>
+      <div class="paused-tag" id="paused-tag">⏸ พักอยู่ — GPS ไม่นับช่วงนี้</div>
+      <div class="live-ctrl">
+        <button class="ctl ctl-pause" id="btn-pause">⏸ พัก</button>
+        <button class="ctl ctl-stop" id="btn-stop">
+          <div class="hold-fill" id="hold-fill"></div>
+          <span>🏁 จบ</span><small>กดค้างไว้</small>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SUMMARY ============ -->
+  <div class="screen" id="scr-summary">
+    <div id="map-sum"></div>
+    <div class="sum-body">
+      <div class="sum-head">
+        <h2>เยี่ยมมาก! <em>วิ่งจบแล้ว</em> 🎉</h2>
+        <span class="pill" id="sum-date"></span>
+      </div>
+      <div class="sum-grid">
+        <div class="glass sum-tile"><div class="v" id="s-dist">0.00 <small>กม.</small></div><div class="l">ระยะทาง</div></div>
+        <div class="glass sum-tile"><div class="v" id="s-time">00:00</div><div class="l">เวลา</div></div>
+        <div class="glass sum-tile"><div class="v" id="s-pace">--:-- <small>/กม.</small></div><div class="l">เพซเฉลี่ย</div></div>
+        <div class="glass sum-tile"><div class="v" id="s-cal">0</div><div class="l">แคลอรี่ (ประมาณ)</div></div>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--volt)"></i>เร็วกว่าค่าเฉลี่ย</span>
+        <span><i style="background:var(--cyan)"></i>ใกล้ค่าเฉลี่ย</span>
+        <span><i style="background:var(--orange)"></i>ช้ากว่า</span>
+      </div>
+      <div class="glass splits" id="splits-card">
+        <h3>สปลิตราย กม.</h3>
+        <div id="splits"></div>
+      </div>
+      <div class="sum-actions">
+        <button class="btn btn-volt" id="btn-save">✓ บันทึกการวิ่ง</button>
+        <button class="btn btn-dim" id="btn-gpx">GPX</button>
+        <button class="btn btn-dim" id="btn-discard">ทิ้ง</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+'use strict';
+/* ================= utils ================= */
+const $ = id => document.getElementById(id);
+const fmtTime = ms => {
+  const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(ss).padStart(2, '0');
+};
+const fmtPace = secPerKm => {
+  if (!isFinite(secPerKm) || secPerKm <= 0 || secPerKm > 3600) return '--:--';
+  const m = Math.floor(secPerKm / 60), s = Math.round(secPerKm % 60);
+  return m + ':' + String(s === 60 ? 0 : s).padStart(2, '0');
+};
+const haversine = (a, b) => {
+  const R = 6371000, toR = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * toR, dLng = (b.lng - a.lng) * toR;
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * toR) * Math.cos(b.lat * toR) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+};
+const toast = msg => { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600); };
+const show = name => { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); $('scr-' + name).classList.add('active'); };
+
+/* ================= map ================= */
+const TILE = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const TILE_OPTS = { maxZoom: 19, attribution: '© OpenStreetMap © CARTO' };
+let liveMap = null, liveLine = null, liveMarker = null, mapOK = false;
+
+function initLiveMap(lat, lng) {
+  if (typeof L === 'undefined') return;
+  try {
+    if (!liveMap) {
+      liveMap = L.map('map-live', { zoomControl: false, attributionControl: false }).setView([lat, lng], 17);
+      L.tileLayer(TILE, TILE_OPTS).addTo(liveMap);
+      liveLine = L.polyline([], { color: '#c9f24b', weight: 5, opacity: .95, lineCap: 'round' }).addTo(liveMap);
+      liveMarker = L.circleMarker([lat, lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#c9f24b', fillOpacity: 1 }).addTo(liveMap);
+    }
+    mapOK = true;
+    $('map-live-off').style.display = 'none';
+    setTimeout(() => liveMap.invalidateSize(), 60);
+  } catch (e) { mapOK = false; }
+}
+
+/* ================= run state ================= */
+const run = {
+  active: false, paused: false, demo: false,
+  startWall: 0, elapsed: 0, lastTick: 0,
+  points: [],           // {lat,lng,t(elapsed ms),d(cum m)}
+  dist: 0,
+  splits: [],           // sec per km
+  lastSplitTime: 0,
+  watchId: null, demoTimer: null, wakeLock: null,
+};
+
+function resetRun() {
+  Object.assign(run, { active: false, paused: false, demo: false, startWall: 0, elapsed: 0, lastTick: 0, points: [], dist: 0, splits: [], lastSplitTime: 0 });
+  if (liveLine) liveLine.setLatLngs([]);
+}
+
+/* ---------- GPS ---------- */
+function setGpsChip(ok, txt) {
+  for (const [d, t] of [['gps-dot', 'gps-txt'], ['live-gps-dot', 'live-gps-txt']]) {
+    $(d).className = 'dot ' + (ok === true ? 'ok' : ok === false ? 'warn' : '');
+    $(t).textContent = txt;
+  }
+}
+
+function onPosition(pos) {
+  const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+  if (accuracy > 45) { setGpsChip(false, 'GPS อ่อน (±' + Math.round(accuracy) + ' ม.)'); return; }
+  setGpsChip(true, 'GPS แม่น');
+  if (!mapOK && run.active) initLiveMap(lat, lng);
+  if (!run.active || run.paused) {
+    if (liveMarker) liveMarker.setLatLng([lat, lng]);
+    return;
+  }
+  const now = run.elapsed;
+  const p = { lat, lng, t: now, d: run.dist };
+  const prev = run.points[run.points.length - 1];
+  if (prev) {
+    const d = haversine(prev, p);
+    const dt = (p.t - prev.t) / 1000;
+    if (d < 2) return;                       // GPS สั่นตอนยืนนิ่ง
+    if (dt > 0 && d / dt > 12.5) return;      // จุดกระโดดผิดปกติ (>45 กม./ชม.)
+    run.dist += d;
+    p.d = run.dist;
+    // สปลิตราย กม.
+    if (Math.floor(run.dist / 1000) > run.splits.length) {
+      const t = run.elapsed / 1000;
+      run.splits.push(t - run.lastSplitTime);
+      run.lastSplitTime = t;
+      if (navigator.vibrate) navigator.vibrate(120);
+    }
+  }
+  run.points.push(p);
+  if (mapOK) {
+    liveLine.addLatLng([lat, lng]);
+    liveMarker.setLatLng([lat, lng]);
+    liveMap.panTo([lat, lng], { animate: true, duration: .4 });
+  } else {
+    const tr = $('trace-live');
+    tr.style.display = '';
+    drawTrace(tr, run.points);
+  }
+}
+
+function startWatch() {
+  if (!('geolocation' in navigator)) { setGpsChip(false, 'เครื่องนี้ไม่มี GPS'); return; }
+  run.watchId = navigator.geolocation.watchPosition(onPosition,
+    err => setGpsChip(false, err.code === 1 ? 'ไม่ได้รับอนุญาตใช้ตำแหน่ง' : 'หาสัญญาณไม่เจอ'),
+    { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 });
+}
+function stopWatch() { if (run.watchId != null) navigator.geolocation.clearWatch(run.watchId); run.watchId = null; }
+
+/* ---------- demo GPS (สำหรับลองบนคอม/ในร่ม) ---------- */
+function startDemo() {
+  run.demo = true;
+  let ang = 0, lat0 = 13.7222, lng0 = 100.5586; // สวนเบญจกิติ
+  run.demoTimer = setInterval(() => {
+    if (!run.active || run.paused) return;
+    ang += 0.055 + Math.random() * 0.012;
+    const jitter = () => (Math.random() - .5) * 0.00003;
+    onPosition({ coords: {
+      latitude: lat0 + 0.0016 * Math.sin(ang) + jitter(),
+      longitude: lng0 + 0.0022 * Math.cos(ang) + jitter(),
+      accuracy: 8 } });
+  }, 1000);
+}
+
+/* ---------- wake lock ---------- */
+async function keepAwake() {
+  try { run.wakeLock = await navigator.wakeLock?.request('screen'); } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (run.active && document.visibilityState === 'visible') keepAwake(); });
+
+/* ---------- ticker ---------- */
+setInterval(() => {
+  if (!run.active || run.paused) return;
+  run.elapsed += Date.now() - run.lastTick; run.lastTick = Date.now();
+  $('m-time').textContent = fmtTime(run.elapsed);
+  $('live-clock').textContent = fmtTime(run.elapsed);
+  $('m-dist').textContent = (run.dist / 1000).toFixed(2);
+  // เพซเฉลี่ย
+  $('m-avg').textContent = run.dist > 80 ? fmtPace((run.elapsed / 1000) / (run.dist / 1000)) : '--:--';
+  // เพซปัจจุบัน: หน้าต่าง ~40 วิล่าสุด
+  const now = run.elapsed, pts = run.points;
+  let i = pts.length - 1;
+  while (i > 0 && now - pts[i - 1].t < 40000) i--;
+  if (pts.length > 1 && i < pts.length - 1) {
+    const dd = pts[pts.length - 1].d - pts[i].d, dt = (pts[pts.length - 1].t - pts[i].t) / 1000;
+    $('m-pace').textContent = dd > 12 ? fmtPace(dt / (dd / 1000)) : '--:--';
+  }
+}, 500);
+
+/* ================= flow ================= */
+function beginRun(demo) {
+  resetRun();
+  run.demo = !!demo;
+  show('live');
+  let n = 3;
+  $('cd-num').textContent = n;
+  $('countdown').classList.add('active');
+  const cd = setInterval(() => {
+    n--;
+    if (n > 0) { $('cd-num').textContent = n; if (navigator.vibrate) navigator.vibrate(40); return; }
+    clearInterval(cd);
+    $('countdown').classList.remove('active');
+    run.active = true; run.paused = false;
+    run.startWall = Date.now(); run.lastTick = Date.now();
+    keepAwake();
+    if (demo) { initLiveMap(13.7222, 100.5586); startDemo(); }
+    else if (run.watchId == null) startWatch();
+  }, 950);
+}
+
+$('btn-start').onclick = () => beginRun(false);
+$('btn-demo').onclick = () => beginRun(true);
+
+$('btn-pause').onclick = () => {
+  run.paused = !run.paused;
+  if (!run.paused) run.lastTick = Date.now();
+  $('btn-pause').textContent = run.paused ? '▶ วิ่งต่อ' : '⏸ พัก';
+  $('btn-pause').classList.toggle('resume', run.paused);
+  $('paused-tag').classList.toggle('show', run.paused);
+};
+
+/* กดค้างเพื่อจบ */
+let holdT0 = 0, holdRAF = 0;
+const holdBtn = $('btn-stop'), holdFill = $('hold-fill');
+const holdStep = () => {
+  const p = Math.min(1, (Date.now() - holdT0) / 1500);
+  holdFill.style.transform = 'scaleX(' + p + ')';
+  if (p >= 1) { endRun(); holdFill.style.transform = 'scaleX(0)'; return; }
+  holdRAF = requestAnimationFrame(holdStep);
+};
+holdBtn.addEventListener('pointerdown', e => { e.preventDefault(); holdT0 = Date.now(); holdRAF = requestAnimationFrame(holdStep); });
+for (const ev of ['pointerup', 'pointerleave', 'pointercancel'])
+  holdBtn.addEventListener(ev, () => { cancelAnimationFrame(holdRAF); holdFill.style.transform = 'scaleX(0)'; });
+
+/* ---------- summary ---------- */
+let sumMap = null, currentResult = null;
+
+function endRun() {
+  run.active = false;
+  stopWatch();
+  clearInterval(run.demoTimer);
+  try { run.wakeLock?.release(); } catch (e) {}
+  currentResult = {
+    id: Date.now(), date: new Date().toISOString(), demo: run.demo,
+    dist: run.dist, dur: run.elapsed, splits: run.splits.slice(),
+    points: run.points.map(p => ({ lat: +p.lat.toFixed(6), lng: +p.lng.toFixed(6), t: Math.round(p.t / 1000), d: Math.round(p.d) })),
+  };
+  renderSummary(currentResult);
+  show('summary');
+}
+
+function renderSummary(r) {
+  const km = r.dist / 1000, sec = r.dur / 1000;
+  $('s-dist').innerHTML = km.toFixed(2) + ' <small>กม.</small>';
+  $('s-time').textContent = fmtTime(r.dur);
+  $('s-pace').innerHTML = (km > .05 ? fmtPace(sec / km) : '--:--') + ' <small>/กม.</small>';
+  $('s-cal').textContent = Math.round(km * 62);   // ~62 kcal/กม. (ค่าประมาณคนน้ำหนักกลาง)
+  $('sum-date').textContent = new Date(r.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + (r.demo ? ' · จำลอง' : '');
+
+  // splits
+  const box = $('splits'); box.innerHTML = '';
+  const partialKm = km - r.splits.length * 1;
+  const rows = r.splits.map((s, i) => ({ label: 'กม.' + (i + 1), sec: s, kmFrac: 1 }));
+  if (partialKm > 0.15 && r.splits.length >= 0 && km > 0.15) {
+    const done = r.splits.reduce((a, b) => a + b, 0);
+    rows.push({ label: 'ท้าย', sec: (sec - done), kmFrac: partialKm, partial: true });
+  }
+  if (!rows.length) { $('splits-card').style.display = 'none'; }
+  else {
+    $('splits-card').style.display = '';
+    const paces = rows.map(x => x.sec / x.kmFrac);
+    const fastest = Math.min(...paces);
+    rows.forEach((x, i) => {
+      const pace = paces[i];
+      const w = Math.max(18, Math.round(fastest / pace * 100));
+      box.insertAdjacentHTML('beforeend',
+        `<div class="split-row"><span class="km">${x.label}</span><div class="bar" style="width:${w * .62}%"></div><span class="pv">${fmtPace(pace)}${x.partial ? ' <small style="color:var(--ink-3)">×' + x.kmFrac.toFixed(2) + 'กม.</small>' : ''}</span></div>`);
+    });
+  }
+
+  // map + เส้นทางไล่สีตามเพซ (ถ้าไม่มีแผนที่ → วาด trace SVG แทน)
+  if (typeof L === 'undefined' && r.points.length > 1) {
+    $('map-sum').innerHTML = '<svg class="trace-svg" id="trace-sum"></svg>';
+    requestAnimationFrame(() =>
+      drawTrace($('trace-sum'), r.points, { colored: true, avgSpd: r.dist / (r.dur / 1000) }));
+  }
+  if (typeof L !== 'undefined' && r.points.length > 1) {
+    if (sumMap) { sumMap.remove(); sumMap = null; }
+    try {
+      sumMap = L.map('map-sum', { zoomControl: false, attributionControl: true });
+      L.tileLayer(TILE, TILE_OPTS).addTo(sumMap);
+      const pts = r.points;
+      const avgSpd = r.dist / (r.dur / 1000);
+      for (let i = 1; i < pts.length; i++) {
+        const d = pts[i].d - pts[i - 1].d, dt = pts[i].t - pts[i - 1].t;
+        const spd = dt > 0 ? d / dt : avgSpd;
+        const ratio = spd / avgSpd;
+        const color = ratio > 1.07 ? '#c9f24b' : ratio < 0.93 ? '#ff8a5c' : '#5fd4f5';
+        L.polyline([[pts[i - 1].lat, pts[i - 1].lng], [pts[i].lat, pts[i].lng]],
+          { color, weight: 5, opacity: .95, lineCap: 'round' }).addTo(sumMap);
+      }
+      L.circleMarker([pts[0].lat, pts[0].lng], { radius: 7, color: '#fff', weight: 3, fillColor: '#0b0b0f', fillOpacity: 1 }).addTo(sumMap);
+      L.circleMarker([pts[pts.length - 1].lat, pts[pts.length - 1].lng], { radius: 7, color: '#fff', weight: 3, fillColor: '#c9f24b', fillOpacity: 1 }).addTo(sumMap);
+      sumMap.fitBounds(liveBounds(pts), { padding: [34, 34] });
+    } catch (e) {}
+  }
+}
+const liveBounds = pts => pts.map(p => [p.lat, p.lng]);
+
+/* ---------- SVG trace fallback (เมื่อไม่มีแผนที่/ออฟไลน์) ---------- */
+function projectPts(pts, w, h, pad) {
+  const lats = pts.map(p => p.lat), lngs = pts.map(p => p.lng);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+  const cosc = Math.cos(((minLat + maxLat) / 2) * Math.PI / 180);
+  const spanX = Math.max((maxLng - minLng) * cosc, 1e-7), spanY = Math.max(maxLat - minLat, 1e-7);
+  const scale = Math.min((w - 2 * pad) / spanX, (h - 2 * pad) / spanY);
+  const ox = (w - spanX * scale) / 2, oy = (h - spanY * scale) / 2;
+  return pts.map(p => [ox + (p.lng - minLng) * cosc * scale, h - oy - (p.lat - minLat) * scale]);
+}
+function drawTrace(svg, pts, { colored = false, avgSpd = 0 } = {}) {
+  if (pts.length < 2) return;
+  const w = svg.clientWidth || 400, h = svg.clientHeight || 300;
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  const xy = projectPts(pts, w, h, 34);
+  let seg = '';
+  for (let i = 1; i < xy.length; i++) {
+    let color = '#c9f24b';
+    if (colored && avgSpd > 0) {
+      const d = pts[i].d - pts[i - 1].d, dt = pts[i].t - pts[i - 1].t;
+      const ratio = (dt > 0 ? d / dt : avgSpd) / avgSpd;
+      color = ratio > 1.07 ? '#c9f24b' : ratio < 0.93 ? '#ff8a5c' : '#5fd4f5';
+    }
+    seg += `<line x1="${xy[i-1][0].toFixed(1)}" y1="${xy[i-1][1].toFixed(1)}" x2="${xy[i][0].toFixed(1)}" y2="${xy[i][1].toFixed(1)}" stroke="${color}" stroke-width="5" stroke-linecap="round"/>`;
+  }
+  const [sx, sy] = xy[0], [ex, ey] = xy[xy.length - 1];
+  svg.innerHTML = seg +
+    `<circle cx="${sx}" cy="${sy}" r="7" fill="#0b0b0f" stroke="#fff" stroke-width="3"/>` +
+    `<circle cx="${ex}" cy="${ey}" r="7" fill="#c9f24b" stroke="#fff" stroke-width="3"/>`;
+}
+
+/* ---------- storage / history ---------- */
+const store = {
+  all: () => { try { return JSON.parse(localStorage.getItem('rundee_runs') || '[]'); } catch (e) { return []; } },
+  save: list => localStorage.setItem('rundee_runs', JSON.stringify(list)),
+};
+
+function renderHistory() {
+  const list = store.all().sort((a, b) => b.id - a.id);
+  const box = $('history');
+  if (!list.length) { box.innerHTML = '<div class="glass empty">ยังไม่มีการวิ่ง — ครั้งแรกของคุณเริ่มได้เลยวันนี้ 💪</div>'; return; }
+  box.innerHTML = list.map(r => {
+    const km = r.dist / 1000, pace = km > .05 ? fmtPace((r.dur / 1000) / km) : '--:--';
+    const d = new Date(r.date).toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' });
+    return `<div class="glass run-item" data-id="${r.id}">
+      <div class="ri-badge">🏃</div>
+      <div class="ri-main"><div class="ri-dist">${km.toFixed(2)} กม.${r.demo ? ' <span style="font-size:10px;color:var(--ink-3)">จำลอง</span>' : ''}</div>
+      <div class="ri-sub">${d} · ${fmtTime(r.dur)}</div></div>
+      <div class="ri-pace">${pace}<div style="font-size:9.5px;color:var(--ink-3);font-weight:600;text-align:right">/กม.</div></div>
+    </div>`;
+  }).join('');
+  box.querySelectorAll('.run-item').forEach(el => el.onclick = () => {
+    const r = store.all().find(x => x.id === +el.dataset.id);
+    if (r) { currentResult = r; renderSummary(r); show('summary'); $('btn-save').style.display = 'none'; }
+  });
+}
+
+$('btn-save').onclick = () => {
+  const list = store.all();
+  if (!list.some(x => x.id === currentResult.id)) list.push(currentResult);
+  store.save(list);
+  toast('บันทึกแล้ว 🎉 เก่งมาก!');
+  backHome();
+};
+$('btn-discard').onclick = backHome;
+function backHome() {
+  $('btn-save').style.display = '';
+  renderHistory(); show('home');
+}
+
+/* ---------- GPX export ---------- */
+$('btn-gpx').onclick = () => {
+  const r = currentResult; if (!r) return;
+  const t0 = new Date(r.date).getTime() - r.dur;
+  const trkpts = r.points.map(p =>
+    `<trkpt lat="${p.lat}" lon="${p.lng}"><time>${new Date(t0 + p.t * 1000).toISOString()}</time></trkpt>`).join('\n');
+  const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="RunDee" xmlns="http://www.topografix.com/GPX/1/1">
+<trk><name>RunDee ${new Date(r.date).toLocaleDateString('th-TH')}</name><trkseg>
+${trkpts}
+</trkseg></trk></gpx>`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([gpx], { type: 'application/gpx+xml' }));
+  a.download = 'rundee-' + r.id + '.gpx';
+  a.click();
+  toast('ดาวน์โหลด GPX แล้ว — เอาไปเปิดใน Strava ได้เลย');
+};
+
+/* ================= boot ================= */
+renderHistory();
+if ('geolocation' in navigator) {
+  navigator.geolocation.getCurrentPosition(
+    p => { setGpsChip(true, 'GPS พร้อม (±' + Math.round(p.coords.accuracy) + ' ม.)'); startWatch(); },
+    e => setGpsChip(false, e.code === 1 ? 'แตะ "เริ่มวิ่ง" แล้วอนุญาตตำแหน่ง' : 'ยังหา GPS ไม่เจอ'),
+    { enableHighAccuracy: true, timeout: 10000 });
+} else setGpsChip(false, 'เบราว์เซอร์นี้ไม่รองรับ GPS');
+</script>
+</body>
+</html>
